@@ -6,6 +6,7 @@ from matplotlib import animation
 import datetime
 
 from line_to_line import closestDistanceBetweenLines
+from line_to_line_2 import closest_distance_between_lines
 
 def read_line(file_path):
     pos = []
@@ -249,13 +250,16 @@ def plot_3d(points, inliers, model, line_1, line_2):
     # except:
     #     print("해를 구할 수 없음")
 
+    # intersection_1, intersection_2, dist_1_to_2 = closest_distance_between_lines(p1, direction_1, p2, direction_2)
     intersection_1, intersection_2, dist_1_to_2 = closestDistanceBetweenLines(p1, p1+direction_1, p2, p2+direction_2)
-    print('point1:', intersection_1, '/ point2:', intersection_2, '/ between dist: ', dist_1_to_2)
+    print('--- point1:', intersection_1)
+    print('--- point2:', intersection_2)
+    print('--- between dist: ', dist_1_to_2)
 
     gathering_data([intersection_1.tolist(), intersection_2.tolist(), dist_1_to_2])         # 오차 보기 위해서 계속해서 저장
 
-    ax.scatter(intersection_1[0], intersection_1[1], intersection_1[2], color='red', s=100)
-    ax.scatter(intersection_2[0], intersection_2[1], intersection_2[2], color='darkred', s=100)
+    ax.scatter(intersection_1[0], intersection_1[1], intersection_1[2], color='red', s=50)
+    ax.scatter(intersection_2[0], intersection_2[1], intersection_2[2], color='darkred', s=50)
 
 
     # 축 범위 설정
@@ -289,11 +293,11 @@ def execute():
 
     # 추정 평면에 대한 결과
     print("Best 2d_model (normal, d):", d2_model)
-    print("Number of 2d_inliers:", len(d2_inliers))
+    # print("Number of 2d_inliers:", len(d2_inliers))
 
     # 추정 평면에 사영(projection)
-    proj_start_points = projection_to_plane(start_points, d2_model)
-    proj_end_points = projection_to_plane(end_points, d2_model)
+    # proj_start_points = projection_to_plane(start_points, d2_model)
+    # proj_end_points = projection_to_plane(end_points, d2_model)
     '''        projection 데이터 수집
     proj_points = projection_to_plane(points, d2_model)
 
@@ -306,8 +310,8 @@ def execute():
     '''
 
     # 시작 점과 끝점에 대해
-    start_line, start_line_inliers = fit_line_ransac(proj_start_points)
-    end_line, end_line_inliers = fit_line_ransac(proj_end_points)
+    start_line, start_line_inliers = fit_line_ransac(start_points)
+    end_line, end_line_inliers = fit_line_ransac(end_points)
 
     print("Best start_line model (p1, dir_1):", start_line)
     print("Best end_line model (p2, dir_2):", end_line)
