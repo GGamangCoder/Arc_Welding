@@ -19,10 +19,8 @@ def closest_distance_between_lines(a, d1, b, d2):
     P2 : np.array - 직선 L2 상의 최단 거리를 이루는 점
     """
     
-    # A와 b 사이의 벡터
     ab = b - a
     
-    # d1, d2, ab 사이 내적 및 외적 계산
     d1_dot_d1 = np.dot(d1, d1)
     d2_dot_d2 = np.dot(d2, d2)
     d1_dot_d2 = np.dot(d1, d2)
@@ -32,18 +30,14 @@ def closest_distance_between_lines(a, d1, b, d2):
     # 두 직선 사이의 최단 거리 상의 매개변수 t, s 계산
     denom = d1_dot_d1 * d2_dot_d2 - d1_dot_d2 ** 2
 
-    if abs(denom) < 0.01:  # 방향 벡터가 거의 평행한 경우 처리
+    if abs(denom) < 0.001:  # 방향 벡터가 거의 평행한 경우 처리
         t, s = 0, ab_dot_d2 / d2_dot_d2  # 두 점을 직선의 초기점으로 고정
     else:
         t = (ab_dot_d1 * d2_dot_d2 - ab_dot_d2 * d1_dot_d2) / denom
         s = (ab_dot_d2 * d1_dot_d1 - ab_dot_d1 * d1_dot_d2) / denom
         
-    # 최단 거리 상의 두 점 P1과 P2 계산
     P1 = a + t * d1
     P2 = b + s * d2
-    
-    # 최단 거리 계산
-    # distance = np.linalg.norm(P2 - P1)
-    
+   
     return P1, P2, np.linalg.norm(P2 - P1)
 

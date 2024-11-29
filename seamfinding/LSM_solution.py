@@ -105,7 +105,7 @@ def plot_3d(pos, line_start, line_end):
     # ax.scatter(min_pos[0], min_pos[1], min_pos[2], color='red', s=50, label="Minimum Point")
 
     # 직선 그리기
-    ax.plot(*zip(line_start, line_end), color='r', label='RANSAC Line')
+    # ax.plot(*zip(line_start, line_end), color='r', label='RANSAC Line')
 
     ax.set_xlabel('X axis')
     ax.set_ylabel('Y axis')
@@ -116,7 +116,7 @@ def plot_3d(pos, line_start, line_end):
 
 
 
-lts_file = "LTS_gather.txt"
+lts_file = "./data/LTS_gather.txt"
 
 pos = read_line(lts_file)
 

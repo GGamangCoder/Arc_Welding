@@ -1,3 +1,7 @@
+'''
+2d 평면 상에 다각형 ransac 을 적용한 함수
+'''
+
 import numpy as np
 import matplotlib.pyplot as plt
 from test_final import read_line
