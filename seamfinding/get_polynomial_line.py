@@ -1,6 +1,10 @@
+##########################################
+# 2차 미분값이 0이 되는 지점을 변곡점으로 판단
+#########################################
+
 import numpy as np
 
-
+from get_data_points import read_line
 
 
 def fit_polynomial(data_points, degree):
@@ -12,6 +16,8 @@ def fit_polynomial(data_points, degree):
         X.append(row)
         Y.append(z)
 
+    # z = a0 + a1*x + a2*y + a3*x^2 + a4*x*y + a5*y^2 + ...
+    # X = x^i * y^j / Z = z
     X = np.array(X)
     Y = np.array(Y)
 
@@ -49,7 +55,7 @@ def find_inflection_points(coeffs, x_range, y_range, degree):
     for x in x_range:
         for y in y_range:
             d2fdx2, d2fdy2, d2fdxdy = second_derivative(coeffs, x, y, degree)
-            min_d2fdx2, min_d2fdy2 = 999, 999
+            min_d2fdx2, min_d2fdy2 = float("inf"), float("inf")
             # 두 번째 도함수가 0인 지점 찾기
             if abs(d2fdx2) < 1e-8 and abs(d2fdy2) < 1e-8:  # 작은 값이면 변곡점으로 간주
                 if min_d2fdx2 > abs(d2fdx2) and min_d2fdy2 > abs(d2fdy2):
@@ -61,20 +67,10 @@ def find_inflection_points(coeffs, x_range, y_range, degree):
     return inflection_points
 
 
-def read_line(file_path):
-    pos = []
-    with open(file_path, 'r') as file:
-        for line in file:
-            values = list(map(float, line.strip().split()))
-            if len(values) == 3:
-                pos.append(values)
-    
-    points = np.array(pos)
-    return points
-
 
 file_path = './data/LTS_gather.txt'  # 파일 경로 설정
 points = read_line(file_path)
+points = points[5:-5]
 x_range, y_range, z = points[1:, 0], points[1:, 1], points[1:, 2]
 
 

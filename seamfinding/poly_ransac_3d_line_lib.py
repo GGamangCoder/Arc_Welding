@@ -5,18 +5,7 @@ from sklearn.linear_model import RANSACRegressor
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
 
-
-# 파일 불러오기
-def read_line(file_path):
-    pos = []
-    with open(file_path, 'r') as file:
-        for line in file:
-            values = list(map(float, line.strip().split()))
-            if len(values) == 3:
-                pos.append(values)
-    
-    points = np.array(pos)
-    return points
+from get_data_points import read_line
 
 
 file_path = './data/LTS_gather.txt'  # 파일 경로 설정
@@ -24,7 +13,7 @@ points = read_line(file_path)
 x, y = points[:, 0], points[:, 1]
 
 # ---------------------------------------------------------------------
-degree = 4
+degree = 2
 poly_model = make_pipeline(PolynomialFeatures(degree), RANSACRegressor())
 
 xy = points[:, :2]

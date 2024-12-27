@@ -1,3 +1,5 @@
+from get_data_points import read_line
+
 import numpy as np
 import random
 from mpl_toolkits.mplot3d import Axes3D
@@ -6,18 +8,11 @@ from matplotlib import animation
 import datetime
 
 from line_to_line import closestDistanceBetweenLines
-from line_to_line_2 import closest_distance_between_lines
+# from line_to_line_2 import closest_distance_between_lines
 
-def read_line(file_path):
-    pos = []
-    with open(file_path, 'r') as file:
-        for line in file:
-            values = list(map(float, line.strip().split()))
-            if len(values) == 3:
-                pos.append(values)
-    
-    points = np.array(pos)
-    return points
+from sklearn.decomposition import PCA
+from numpy.polynomial.polynomial import Polynomial
+
 
 
 def fit_plane(points):      # 3점으로부터 평면 방정식 획득
@@ -203,17 +198,21 @@ def gathering_data(data, filename='make_data/dist_gather.txt'):
         file.write(data_format + '\n')
 
 
+def polynomial_fit(points_2d, degree=3):
+    x = np.vander(points_2d[:, 0], degree+1)
+    y = points_2d[:, 1]
+    coeffs, _, _, _ = np.linalg.lstsq(x, y, rcond=None)
+    return coeffs
+
+
+
+
 def plot_3d(points, inliers, model, line_1, line_2):
     normal, d = model
-
-    # 평면을 그리기 위한 포인트 생성
-    xx, yy = np.meshgrid(np.linspace(np.min(points[:, 0]), np.max(points[:, 0]), 10),
-                         np.linspace(np.min(points[:, 1]), np.max(points[:, 1]), 10))
-
-    zz = (-normal[0] * xx - normal[1] * yy - d) * 1. / normal[2]
-
+    
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
+
 
     # 원래 점들 (아웃라이어 포함)
     ax.scatter(points[:, 0], points[:, 1], points[:, 2], color='green', alpha=0.5, s=20, label='Outliers')
@@ -222,10 +221,20 @@ def plot_3d(points, inliers, model, line_1, line_2):
     inliers = np.array(inliers)
     ax.scatter(inliers[:, 0], inliers[:, 1], inliers[:, 2], color='blue', alpha=0.8, s=20, label='Inliers')
 
+    #########################################################
     # 평면 그리기
-    ax.plot_surface(xx, yy, zz, color='yellow', alpha=0.5, rstride=100, cstride=100)
+    #########################################################
+    # xx, yy = np.meshgrid(np.linspace(np.min(points[:, 0]), np.max(points[:, 0]), 10),
+    #                      np.linspace(np.min(points[:, 1]), np.max(points[:, 1]), 10))
 
+    # zz = (-normal[0] * xx - normal[1] * yy - d) * 1. / normal[2]
+
+    # ax.plot_surface(xx, yy, zz, color='yellow', alpha=0.5, rstride=100, cstride=100)
+
+    '''
+    #########################################################
     # 직선 그리기
+    #########################################################
     p1, direction_1 = line_1
     line_1_points = np.array([p1 + t * direction_1 for t in np.linspace(-100, 100, 10)])
 
@@ -250,6 +259,9 @@ def plot_3d(points, inliers, model, line_1, line_2):
     # except:
     #     print("해를 구할 수 없음")
 
+
+    #########################################################
+    # 두 직선 사이 가장 가까운 거리의 두 점 찾기
     # intersection_1, intersection_2, dist_1_to_2 = closest_distance_between_lines(p1, direction_1, p2, direction_2)
     intersection_1, intersection_2, dist_1_to_2 = closestDistanceBetweenLines(p1, p1+direction_1, p2, p2+direction_2)
     print('--- point1:', intersection_1)
@@ -260,12 +272,14 @@ def plot_3d(points, inliers, model, line_1, line_2):
 
     ax.scatter(intersection_1[0], intersection_1[1], intersection_1[2], color='red', s=50)
     ax.scatter(intersection_2[0], intersection_2[1], intersection_2[2], color='darkred', s=50)
+    #########################################################
+    '''
 
 
     # 축 범위 설정
-    ax.set_xlim(np.min(points[:, 0] - 0.5), np.max(points[:, 0] + 0.5))
-    ax.set_ylim(np.min(points[:, 1] - 2), np.max(points[:, 1] + 2))
-    ax.set_zlim(np.min(points[:, 2] - 2), np.max(points[:, 2] + 2))
+    ax.set_xlim(np.min(points[:, 0] - 5), np.max(points[:, 0] + 5))
+    ax.set_ylim(np.min(points[:, 1] - 4), np.max(points[:, 1] + 4))
+    ax.set_zlim(np.min(points[:, 2] - 4), np.max(points[:, 2] + 4))
 
     ax.set_xlabel('X axis')
     ax.set_ylabel('Y axis')
@@ -281,8 +295,10 @@ def plot_3d(points, inliers, model, line_1, line_2):
 
     plt.show()
 
+
 def execute():
-    file_path = './data/LTS_gather.txt'  # 파일 경로 설정
+    # file_path = './data/LTS_gather.txt'  # 파일 경로 설정
+    file_path = './data/5_butt_wide_2.txt'
     points = read_line(file_path)
 
     start_points = points[:80, :]
@@ -292,13 +308,15 @@ def execute():
     d2_model, d2_inliers = plane_ransac(points)
 
     # 추정 평면에 대한 결과
-    print("Best 2d_model (normal, d):", d2_model)
+    # print("Best 2d_model (normal, d):", d2_model)
     # print("Number of 2d_inliers:", len(d2_inliers))
 
     # 추정 평면에 사영(projection)
     # proj_start_points = projection_to_plane(start_points, d2_model)
     # proj_end_points = projection_to_plane(end_points, d2_model)
-    '''        projection 데이터 수집
+    '''
+    # projection 데이터 수집
+
     proj_points = projection_to_plane(points, d2_model)
 
     print(type(proj_points))
@@ -313,8 +331,8 @@ def execute():
     start_line, start_line_inliers = fit_line_ransac(start_points)
     end_line, end_line_inliers = fit_line_ransac(end_points)
 
-    print("Best start_line model (p1, dir_1):", start_line)
-    print("Best end_line model (p2, dir_2):", end_line)
+    print("Best start_line model (p1, dir_1)/inliers:", start_line, start_line_inliers)
+    print("Best end_line model (p2, dir_2)/inliers:", end_line, end_line_inliers)
 
     plot_3d(points, d2_inliers, d2_model, start_line, end_line)
 

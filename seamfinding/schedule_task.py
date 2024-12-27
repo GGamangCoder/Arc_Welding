@@ -1,3 +1,6 @@
+# 쓰레드 - 데이터 획득
+
+
 import threading
 import time
 import test_final
