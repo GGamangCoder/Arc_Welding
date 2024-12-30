@@ -73,11 +73,6 @@ x, y = points_2d[:, 0], points_2d[:, 1]
 x_sorted = np.sort(x)
 y_fit_sorted = poly_fit(x_sorted)
 
-
-
-
-
-''' ---------------------------- 시각화 '''
 plt.figure()
 plt.scatter(x, y, label="Projected Points", alpha=0.5)
 plt.plot(x_sorted, y_fit_sorted, label=f"Fitted Curve (Degree={poly_fit.degree()})", color="g")
