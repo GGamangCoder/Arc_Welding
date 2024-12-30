@@ -1,5 +1,6 @@
 ##########################################
 # 2차 미분값이 0이 되는 지점을 변곡점으로 판단
+# ㄴ 개망함
 #########################################
 
 import numpy as np
@@ -68,7 +69,7 @@ def find_inflection_points(coeffs, x_range, y_range, degree):
 
 
 
-file_path = './data/LTS_gather.txt'  # 파일 경로 설정
+file_path = './data/1_fillet_gap.txt'  # 파일 경로 설정
 points = read_line(file_path)
 points = points[5:-5]
 x_range, y_range, z = points[1:, 0], points[1:, 1], points[1:, 2]

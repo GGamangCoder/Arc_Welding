@@ -1,5 +1,5 @@
 # 쓰레드 - 데이터 획득
-
+# interval(60sec)마다 함수 실행
 
 import threading
 import time

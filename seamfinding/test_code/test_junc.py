@@ -86,6 +86,64 @@ def fit_line_ransac(points, n_iterations=100, threshold=0.1):
     return best_line, best_inliers_cnt
 
 
+'''
+두 직선이 만나지 않을 경우에는 두 직선 사이 거리를 최소로 하는 점을 기준으로 한다.
+이 때 거기를 기준으로 각 직선 위의 점 or 가운데 점?
+'''
+# 첫 번째 방법
+def get_intersection_1(p1, d1, p2, d2):
+    cross_prod = np.cross(d1, d2)
+    
+    if np.linalg.norm(cross_prod) < 1e-10:  # 평행이면,
+        return None
+    
+    A = np.array([d1, -d2]).T   # 방향 벡터로 구성된 행렬
+    b = p2-p1
+
+    try:
+        t_s = np.linalg.solve(A, b)
+        t, s = t_s[0], t_s[1]
+
+        inter_point_1 = p1 + t * d1
+        inter_point_2 = p2 + t * d2
+
+        if inter_point_1 != inter_point_2:
+            print('일치하지 않음')
+
+        return inter_point_1
+
+    except np.linalg.LinAlgError:
+        return None  # 해를 구할 수 없음
+
+# 두 번째 방법
+def get_intersection_2(p1, d1, p2, d2):
+    d1 = d1 / np.linalg.norm(d1)
+    d2 = d2 / np.linalg.norm(d2)
+
+    # 두 직선의 차이 벡터
+    p1_to_p2 = p2 - p1
+
+    # 직선 사이의 거리 행렬
+    mat_a = np.array([[np.dot(d1, d1), np.dot(d1, d2)],
+                      [np.dot(d2, d1), np.dot(d2, d2)]])
+
+    mat_b = np.array([np.dot(d1, p1_to_p2), np.dot(d2, p1_to_p2)])
+
+    # Least squares 방법으로 t와 s를 구함
+    try:
+        t_s = np.linalg.solve(mat_a, mat_b)
+        t = t_s[0]
+        s = t_s[1]
+
+        # 가장 가까운 점 계산
+        closest_point1 = p1 + t * d1
+        closest_point2 = p2 + s * d2
+
+        return closest_point1, closest_point2
+    except np.linalg.LinAlgError:
+        return None  # 해를 구할 수 없음
+
+
 # 직선 A에 대해 한 점: pA, 방향 고유벡터: dA
 def get_intersection_3(p1, d1, p2, d2):
     '''
