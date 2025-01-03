@@ -11,6 +11,11 @@ def read_line(file_path):
                 pos.append(values)
     
     points = np.array(pos)
+
+    # 첫 번째 점을 0으로 하여 shift
+    # point_0 = points[0]
+    # points -= point_0
+
     return points
 
 # print(len(read_line('./data/1_fillet_gap.txt')))

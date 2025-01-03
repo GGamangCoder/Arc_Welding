@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 
 
-file_path = './data/1_fillet_gap.txt'  # 파일 경로 설정
+file_path = './data/6_butt_narrow.txt'  # 파일 경로 설정
 points = read_line(file_path)
 
 # X = points[:, 0]
@@ -58,7 +58,7 @@ X_pca = pca.fit_transform(datas)
 x_pca = X_pca[:, 0]
 y_pca = X_pca[:, 1]
 
-degree = 2
+degree = 4
 
 poly = PolynomialFeatures(degree)
 x_poly = poly.fit_transform(x_pca.reshape(-1, 1))
@@ -104,6 +104,11 @@ elif degree == 3:
 
     # print(f"3차 다항식 변곡점 및 최저점 (3D 좌표): {min_point_3d}")
 
+else:
+    min_point_x = None
+    min_point_y = None
+
+
 # a, b, c = coeffs[0], coeffs[1], coeffs[2]
 # # print(coeffs, ransac.estimator_.intercept_)
 
@@ -119,6 +124,7 @@ plt.scatter(x_pca, y_pca, color='blue', label='PCA Transformed Data')
 if min_point_x is not None:
     print("min_point_x, min_point_y:", min_point_x, min_point_y)
     plt.scatter(min_point_x, min_point_y, color='red', label='Minimum Point')
+
 plt.xlabel('Principal Component 1')
 plt.ylabel('Principal Component 2')
 plt.title('RANSAC Polynomial Fitting on PCA Data')

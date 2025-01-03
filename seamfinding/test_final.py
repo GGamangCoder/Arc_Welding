@@ -173,7 +173,6 @@ def plot_3d(points, inliers, model, line_1, line_2):
 
     # ax.plot_surface(xx, yy, zz, color='yellow', alpha=0.5, rstride=100, cstride=100)
 
-    '''  --------------------------------------------------------------------
     #########################################################
     # 직선 그리기
     #########################################################
@@ -201,6 +200,7 @@ def plot_3d(points, inliers, model, line_1, line_2):
     # except:
     #     print("해를 구할 수 없음")
 
+    '''  --------------------------------------------------------------------
 
     #########################################################
     # 두 직선 사이 가장 가까운 거리의 두 점 찾기
@@ -240,11 +240,13 @@ def plot_3d(points, inliers, model, line_1, line_2):
 
 def execute():
     # file_path = './data/LTS_gather.txt'  # 파일 경로 설정
-    file_path = './data/1_fillet_gap.txt'
+    file_path = './data/5_butt_wide_2.txt'
     points = read_line(file_path)
+    num = len(points) // 2
+    print(num)
 
-    start_points = points[:80, :]
-    end_points = points[-80:, :]
+    start_points = points[50:(num -10), :]
+    end_points = points[(num+10):-50, :]
 
     # RANSAC 실행
     d2_model, d2_inliers = plane_ransac(points)

@@ -31,7 +31,7 @@ def fit_polynomial_regression(x, y, z, n_degree=2):
 
     model = RANSACRegressor(
         # estimator=LinearRegression(),
-        residual_threshold=0.3,
+        residual_threshold=0.05,
         max_trials=100
     )
     model.fit(Y, x)
