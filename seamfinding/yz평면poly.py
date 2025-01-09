@@ -83,7 +83,7 @@ def find_closest_index(min_x, x_range):
     return closest_index
 
 def process_3d_data():
-    points = np.loadtxt("./data/4_butt_wide.txt")
+    points = np.loadtxt("./data/8_single_bevel.txt")
 
     Y, Z = points[:, 1], points[:, 2]
 
@@ -102,7 +102,7 @@ def process_3d_data():
     inv_points = points[min_idx]
     print('inv_points: ', inv_points)
 
-    # plot_3d(points, Y, Z, z_fit, minima, inv_points)
+    plot_3d(points, Y, Z, z_fit, minima, inv_points)
 
 
 if __name__ == "__main__":
@@ -110,7 +110,7 @@ if __name__ == "__main__":
 
     # 실행 시간 계산 평균
     # excutime_time = timeit.timeit('process_3d_data()', globals=globals(), number=5)
-    excutime_time = timeit.timeit(process_3d_data, number=5)
-    print(f"Execution time: {excutime_time:.4f} seconds")
+    # excutime_time = timeit.timeit(process_3d_data, number=5)
+    # print(f"Execution time: {excutime_time:.4f} seconds")
 
-    # process_3d_data()
+    process_3d_data()

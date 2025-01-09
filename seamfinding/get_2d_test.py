@@ -13,7 +13,7 @@ from sklearn.preprocessing import PolynomialFeatures
 from numpy.polynomial.polynomial import Polynomial
 import matplotlib.pyplot as plt
 
-from test_final import fit_line_ransac
+from get_line_test import fit_line_ransac
 
 
 

@@ -1,4 +1,4 @@
-from get_data_points import read_line
+from read_data_points import read_line
 
 import numpy as np
 import random
