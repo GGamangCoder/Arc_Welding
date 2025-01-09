@@ -26,9 +26,9 @@ def estimate_plane_pca(points):
     projected_points = pca.transform(points)
     # Recover the plane's origin and axes for visualization
     origin = pca.mean_                      # 평균, Per-feature empirical mean, estimated from the training set.
-    normal_vector = pca.components_[1]      # 주축 벡터, Principal axes in feature space, representing the directions of maximum variance in the data.
+    normal_vector = pca.components_[0]      # 주축 벡터, Principal axes in feature space, representing the directions of maximum variance in the data.
 
-    return projected_points, pca, origin, normal_vector, pca.components_[0]
+    return projected_points, pca, origin, pca.components_[0], pca.components_[1]
 
 # Step 2: Polynomial fitting with RANSAC
 def fit_polynomial_ransac(projected_points, degree=4):
@@ -41,7 +41,7 @@ def fit_polynomial_ransac(projected_points, degree=4):
     ransac.fit(X_poly, y)
     y_fit = ransac.predict(X_poly)
 
-    return ransac, poly_features, x, y, y_fit
+    return ransac, x, y, y_fit
 
 # Step 3-1: Detect global minima(2차 도함수가 0)
 # 4차 이상이라고 생각하고 1차 미분값이 0이면서 - -> + 바뀌는 구간 중 최솟값
@@ -122,10 +122,10 @@ def plot_3d(points, projected_points, poly_ransac, poly_x, poly_y, minima, plane
         ax.scatter(inv_points[0], inv_points[1], inv_points[2], label='minima points', s=20)
     ax.quiver(plane_origin[0], plane_origin[1], plane_origin[2],
               plane_normal_1[0], plane_normal_1[1], plane_normal_1[2],
-              length=5, color='red', label='Plane Normal')
+              length=5, color='red', label='Main Normal')
     ax.quiver(plane_origin[0], plane_origin[1], plane_origin[2],
               plane_normal_2[0], plane_normal_2[1], plane_normal_2[2],
-              length=5, color='darkred', label='Plane Normal')
+              length=5, color='darkred', label='Sub Normal')
     #########################################################
     # 직선 그리기 - 그래프 길이는 조절 가능 & 교점 찾기
     # p1, direction_1 = line_1
@@ -159,10 +159,12 @@ def plot_3d(points, projected_points, poly_ransac, poly_x, poly_y, minima, plane
 # Main pipeline
 def process_3d_data(points):
     projected_points, pca, origin, normal_1, normal_2 = estimate_plane_pca(points)
+    # print(f"main normal: {normal_1}")
+    # print(f"sub normal: {normal_2}")
 
-    n_degree = 6
+    n_degree = 5
     # ransac 객체, poly_features 항들/계수, x/y: proj_points(pca 새로운 축), y_fit: 적용
-    ransac, poly_features, x, y, y_fit = fit_polynomial_ransac(projected_points, degree=n_degree)
+    ransac, x, y, y_fit = fit_polynomial_ransac(projected_points, degree=n_degree)
 
     poly_coefficients = ransac.estimator_.coef_         # 높은 차수 부터 낮은 차수 순으로
     poly_intercept = ransac.estimator_.intercept_       # 가장 마지막 항, 즉 y 절편
@@ -185,7 +187,7 @@ def process_3d_data(points):
     print(f"역변환 좌표: {inv_points}")
 
     # 직선 회귀
-    data_num = 80
+    data_num = 30
     start_points = points[min_idx-data_num:min_idx, :]
     end_points = points[min_idx:min_idx+data_num, :]
     

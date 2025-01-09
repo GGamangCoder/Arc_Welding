@@ -6,6 +6,8 @@ from sklearn.linear_model import RANSACRegressor
 from sklearn.preprocessing import PolynomialFeatures
 from numpy.polynomial.polynomial import Polynomial
 
+import timeit
+
 
 def fit_polynomial_ransac(axis1, axis2, degree=4):
     poly_features = PolynomialFeatures(degree=degree)
@@ -100,10 +102,15 @@ def process_3d_data():
     inv_points = points[min_idx]
     print('inv_points: ', inv_points)
 
-    plot_3d(points, Y, Z, z_fit, minima, inv_points)
+    # plot_3d(points, Y, Z, z_fit, minima, inv_points)
 
 
 if __name__ == "__main__":
     # 3D 데이터 생성
 
-    process_3d_data()
+    # 실행 시간 계산 평균
+    # excutime_time = timeit.timeit('process_3d_data()', globals=globals(), number=5)
+    excutime_time = timeit.timeit(process_3d_data, number=5)
+    print(f"Execution time: {excutime_time:.4f} seconds")
+
+    # process_3d_data()
