@@ -1,5 +1,5 @@
 '''
-1. PCS로 평면을 추정하여 점들을 사영
+1. PCA로 평면을 추정하여 점들을 사영
 2. polynomial RANSAC 돌려서 다차 곡선 추정
 3. 최저점을 파악
     ㄴ 2가지 방법(도함수 비교 / 라이브러리 이용)
@@ -112,12 +112,13 @@ def find_closest_index(min_x, x_range):
 # 옆에 함수 가져오기 -- test_final fit_line_ransac
 
 # Step 5: Visualization utility
-def plot_3d(points, projected_points, poly_ransac, poly_x, poly_y, minima, plane_origin, plane_normal_1, plane_normal_2, line_1, line_2, inv_points=None):
+def plot_3d(points, origin_points, projected_points, poly_ransac, poly_x, poly_y, minima, plane_origin, plane_normal_1, plane_normal_2, line_1, line_2, inv_points=None):
     fig = plt.figure(figsize=(12, 6))
     
     # Original 3D points
     ax = fig.add_subplot(121, projection='3d')
-    ax.scatter(points[:, 0], points[:, 1], points[:, 2], label='Original Points', s=1)
+    ax.scatter(origin_points[:, 0], origin_points[:, 1], origin_points[:, 2], label='Trans points', color='g', s=5)
+    ax.scatter(points[:, 0], points[:, 1], points[:, 2], label='formula Points', color='b', s=5)
     if inv_points is not None:
         ax.scatter(inv_points[0], inv_points[1], inv_points[2], label='minima points', s=20)
     ax.quiver(plane_origin[0], plane_origin[1], plane_origin[2],
@@ -157,21 +158,21 @@ def plot_3d(points, projected_points, poly_ransac, poly_x, poly_y, minima, plane
     plt.show()
 
 # Main pipeline
-def process_3d_data(points):
+def process_3d_data(points, origin_points, degree):
     projected_points, pca, origin, normal_1, normal_2 = estimate_plane_pca(points)
-    # print(f"main normal: {normal_1}")
-    # print(f"sub normal: {normal_2}")
+    print(f"main normal: {normal_1}")
+    print(f"sub normal: {normal_2}")
 
-    n_degree = 5
+    projected_points = points[:, 1:3]
     # ransac 객체, poly_features 항들/계수, x/y: proj_points(pca 새로운 축), y_fit: 적용
-    ransac, x, y, y_fit = fit_polynomial_ransac(projected_points, degree=n_degree)
+    ransac, x, y, y_fit = fit_polynomial_ransac(projected_points, degree=degree)
 
     poly_coefficients = ransac.estimator_.coef_         # 높은 차수 부터 낮은 차수 순으로
     poly_intercept = ransac.estimator_.intercept_       # 가장 마지막 항, 즉 y 절편
     # print(f'계수: {poly_coefficients} / 상수: {poly_intercept}')
 
     poly_coefficients[0] = poly_intercept
-    print(f"{n_degree}차 방정식 계수: {poly_coefficients}")
+    print(f"{degree}차 방정식 계수: {poly_coefficients}")
     minima = find_global_minima(poly_coefficients, x)
 
     # poly_coefficients = poly_coefficients[::-1]     # 계수 역순 정렬, 일반적인 n차 곡선 방정식
@@ -197,11 +198,26 @@ def process_3d_data(points):
     # print("Best start_line model (p1, dir_1)/inliers:", start_line, start_line_inliers)
     # print("Best end_line model (p2, dir_2)/inliers:", end_line, end_line_inliers)
 
-    plot_3d(points, projected_points, ransac, x, y_fit, minima, origin, normal_1, normal_2, start_line, end_line, inv_points)
+    plot_3d(points, origin_points, projected_points, ransac, x, y_fit, minima, origin, normal_1, normal_2, start_line, end_line, inv_points)
+
+from 로드리게즈_변환 import rotation_formula
 
 # Example usage
 if __name__ == "__main__":
     points = np.loadtxt("./data/8_single_bevel.txt")
     # x, y, z = points[:, 0], points[:, 1], points[:, 2]
 
-    process_3d_data(points)
+    axis_idx = 1
+
+    points -= points[0]
+
+    origin_points = points
+    points = rotation_formula(points, axis_idx)
+
+    P_start = points[0]
+    P_end = points[-1]
+    vector = P_end - P_start
+    # print(f'Vec(start->end): {vector}')
+
+    n_degree = 3
+    process_3d_data(points, origin_points, degree=n_degree)
