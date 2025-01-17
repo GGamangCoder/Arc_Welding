@@ -238,7 +238,7 @@ def plot_3d(origin_points, rot_points, projected_points, poly_x, poly_y, line_1,
     plt.show()
 
 # Main pipeline
-def process_3d_data(points):
+def process_3d_data(points, n_degree, dir, count, iterations, threshold):
     # 원래 포인트 복사
     origin_points = copy.deepcopy(points)
 
@@ -246,17 +246,11 @@ def process_3d_data(points):
     first_point = copy.deepcopy(points[0])
     points -= first_point               # 이거 나중에 원복 필요.
 
-    # 센서 게더링 방향(==툴 이동 방향)
-    axis_dir = "X"
-
     # 데이터 회전 변환(좌표계 설정)
-    rotation_points = rotation_formula(points, axis_dir)
+    rotation_points = rotation_formula(points, dir)
     
-    # 다항식 차수 결정
-    n_degree = 3
-
     # X 축으로 정렬하면 xz 평면을, Y축일 경우에는 yz 평면을 본다.
-    if axis_dir == "X":
+    if dir == "X":
         proj_plane_points = rotation_points[:, [0, 2]]
     else:
         proj_plane_points = rotation_points[:, 1:3]
@@ -276,15 +270,12 @@ def process_3d_data(points):
     # 회귀 추정된 점과 가장 가까운 원 데이터의 index
     min_idx = find_closest_index(minima[0], X)
 
-    # 직선 회귀
-    data_num = 80
+    # 직선 회귀 점들 추출: 기준점으로부터 양 쪽으로 count 만큼
+    start_points = origin_points[min_idx - count : min_idx, :]
+    end_points = origin_points[min_idx : min_idx + count, :]
 
-    # 직선 회귀 점들 추출: 기준점으로부터 양 쪽으로 data_num 만큼
-    start_points = origin_points[min_idx - data_num : min_idx, :]
-    end_points = origin_points[min_idx : min_idx + data_num, :]
-
-    start_line, start_line_inliers = fit_line_ransac(start_points)
-    end_line, end_line_inliers = fit_line_ransac(end_points)
+    start_line, start_line_inliers = fit_line_ransac(start_points, iterations, threshold)
+    end_line, end_line_inliers = fit_line_ransac(end_points, iterations, threshold)
 
     print(f"start line 인라이어(개): {start_line_inliers}")
     print(f"end line 인라이어(개): {end_line_inliers}")
@@ -298,4 +289,17 @@ if __name__ == "__main__":
     # 데이터 불러오기
     points = np.loadtxt("./data/1_fillet_gap.txt")
 
-    process_3d_data(points)
+    # 값 입력하기(다항식 차수, 회전 방향(진행 방향), 직선 회귀 데이터: 갯수/반복 횟수/임계값)
+    # 다항식 차수 결정
+    degree = 3
+
+    # 센서 게더링 방향(== 툴 이동 방향)
+    axis_dir = "X"
+
+    # 직선 회귀 데이터
+    data_count = 30         # 데이터 개수
+    iterations = 1000        # 반복 횟수, 기본값 100
+    threshold = 0.05         # 임계값, 기본값 0.1
+
+    # main 함수 호출
+    process_3d_data(points, degree, axis_dir, data_count, iterations, threshold)
