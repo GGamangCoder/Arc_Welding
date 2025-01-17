@@ -21,10 +21,8 @@ import matplotlib.pyplot as plt
 from line_to_line import closestDistanceBetweenLines
 
 
-
-
 # Step1: 좌표계 설정 및 회전 변환
-def rotation_formula(data, dir="X"):
+def rotation_formula(data, dir):
     """
     3D 점들의 좌표계를 설정하고, 주어진 방향으로 회전 변환을 수행한다.
     이동 방향을 기준으로 로드리게즈 회전 변환 공식을 이용한다.
@@ -36,8 +34,8 @@ def rotation_formula(data, dir="X"):
     return:
         transformed_data (ndarray): 회전 변환해서 얻은 데이터
     """
-    P_start = data[0]
-    P_end = data[-1]
+    P_start = data[10]
+    P_end = data[-11]
     vector = P_end - P_start
 
     unit_vector = vector / np.linalg.norm(vector)    # 단위 벡터 변환
@@ -47,6 +45,8 @@ def rotation_formula(data, dir="X"):
         target_vector = np.array([1, 0, 0])
     elif dir == "Y":
         target_vector = np.array([0, 1, 0])
+    else:
+        raise ValueError("잘못된 축이 입력되었습니다.")
 
     # 회전 축 (벡터의 외적)
     rotation_axis = np.cross(unit_vector, target_vector)
@@ -130,10 +130,10 @@ def find_global_minima(poly_coefficients, x_range):
         y_values = [poly(x) for x in minima_candidates]
         min_index = np.argmin(y_values)
         min_x, min_y = minima_candidates[min_index], y_values[min_index]
-        return min_x, min_y
+        return [min_x, min_y]
     else:
         # raise ValueError("유효한 최솟값을 찾을 수 없습니다. 주어진 x 범위 내에 최솟값이 없습니다.")
-        return None, None
+        return [None, None]
 
 
 # Step 3-1: 찾은 결과와 가장 가까운 데이터(인덱스) 구하기
@@ -183,7 +183,7 @@ def fit_line_ransac(points, n_iterations=100, threshold=0.1):
 
 
 # Step 6: Visualization utility
-def plot_3d(origin_points, rot_points, projected_points, poly_x, poly_y, line_1, line_2, minima, idx=None):
+def plot_3d(origin_points, dir, rot_points, projected_points, poly_x, poly_y, line_1, line_2, minima, idx=None):
 
     fig = plt.figure(figsize=(12, 6))
     
@@ -229,7 +229,7 @@ def plot_3d(origin_points, rot_points, projected_points, poly_x, poly_y, line_1,
     ax2.plot(poly_x, poly_y, color='orange', label='Fitted Polynomial')
     ax2.scatter(minima[0], minima[1], label='Minima', color='r', s=20)
 
-    ax2.set_xlabel('X')
+    ax2.set_xlabel(f'{dir}')
     ax2.set_ylabel('Z')
 
     ax2.set_title("2D Projected Points and Fitted Curve")
@@ -240,7 +240,8 @@ def plot_3d(origin_points, rot_points, projected_points, poly_x, poly_y, line_1,
 # Main pipeline
 def process_3d_data(points, n_degree, dir, count, iterations, threshold):
     # 원래 포인트 복사
-    origin_points = copy.deepcopy(points)
+    # origin_points = copy.deepcopy(points)
+    origin_points = points
 
     # 원점 기준 변경
     first_point = copy.deepcopy(points[0])
@@ -249,11 +250,13 @@ def process_3d_data(points, n_degree, dir, count, iterations, threshold):
     # 데이터 회전 변환(좌표계 설정)
     rotation_points = rotation_formula(points, dir)
     
-    # X 축으로 정렬하면 xz 평면을, Y축일 경우에는 yz 평면을 본다.
+    # X 축으로 정렬하면 xz 평면을, Y축일 경우에는 yz 평면을 본다.       -- 이 부분이 이상함 ..
     if dir == "X":
         proj_plane_points = rotation_points[:, [0, 2]]
-    else:
+    elif dir == "Y":
         proj_plane_points = rotation_points[:, 1:3]
+    else:
+        raise ValueError("잘못된 축이 입력되었습니다.")
 
     # 여기서 X는 주축(x or y), Y는 z를 의미한다.
     ransac, X, Y, Y_fit = fit_polynomial_ransac(proj_plane_points, degree=n_degree)
@@ -268,7 +271,10 @@ def process_3d_data(points, n_degree, dir, count, iterations, threshold):
     minima = find_global_minima(poly_coefficients, X)
 
     # 회귀 추정된 점과 가장 가까운 원 데이터의 index
-    min_idx = find_closest_index(minima[0], X)
+    if minima[0] == None:
+        min_idx = len(points) // 2
+    else:
+        min_idx = find_closest_index(minima[0], X)
 
     # 직선 회귀 점들 추출: 기준점으로부터 양 쪽으로 count 만큼
     start_points = origin_points[min_idx - count : min_idx, :]
@@ -280,25 +286,25 @@ def process_3d_data(points, n_degree, dir, count, iterations, threshold):
     print(f"start line 인라이어(개): {start_line_inliers}")
     print(f"end line 인라이어(개): {end_line_inliers}")
 
-    rotation_points += first_point
+    # rotation_points += first_point
     
-    plot_3d(origin_points, rotation_points, proj_plane_points, X, Y_fit, start_line, end_line, minima, min_idx)
+    plot_3d(origin_points, dir, rotation_points, proj_plane_points, X, Y_fit, start_line, end_line, minima, min_idx)
 
 
 if __name__ == "__main__":
     # 데이터 불러오기
-    points = np.loadtxt("./data/1_fillet_gap.txt")
+    points = np.loadtxt("./data/6_butt_narrow.txt")
 
     # 값 입력하기(다항식 차수, 회전 방향(진행 방향), 직선 회귀 데이터: 갯수/반복 횟수/임계값)
     # 다항식 차수 결정
-    degree = 3
+    degree = 4
 
     # 센서 게더링 방향(== 툴 이동 방향)
     axis_dir = "X"
 
     # 직선 회귀 데이터
     data_count = 30         # 데이터 개수
-    iterations = 1000        # 반복 횟수, 기본값 100
+    iterations = 100        # 반복 횟수, 기본값 100
     threshold = 0.05         # 임계값, 기본값 0.1
 
     # main 함수 호출

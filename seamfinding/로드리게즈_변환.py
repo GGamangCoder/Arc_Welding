@@ -13,10 +13,12 @@ def rotation_formula(data, dir):
     unit_vector = vector / np.linalg.norm(vector)
 
     # (1, 0, 0) 방향 벡터
-    if dir == 0:
+    if dir == "X":
         target_vector = np.array([1, 0, 0])
-    elif dir == 1:
+    elif dir == "Y":
         target_vector = np.array([0, 1, 0])
+    else:
+        raise ValueError("잘못된 축이 입력되었습니다.")
 
     # 회전 축 (벡터의 외적)
     rotation_axis = np.cross(unit_vector, target_vector)
@@ -48,12 +50,8 @@ def main_func(points):
 
     # 진행 방향
     dir = "X"
-    # 주축에 따라서 축 설정
-    # X 축이면 인덱스 0, Y 축이면 인덱스 1
-    axis_idx = 0 if dir == "X" else 1
-    print(dir, "축: ", axis_idx)
 
-    transformed_data = rotation_formula(points, axis_idx)
+    transformed_data = rotation_formula(points, dir)
 
 
     fig = plt.figure(figsize=(12, 6))
@@ -73,6 +71,8 @@ def main_func(points):
     # -------------------------------------------- 2번 그래프
     ax2 = fig.add_subplot(122)
     ax2_label = f'{dir}Z points'
+    axis_idx = 0 if dir=="X" else 1         # X축이면 yz 평면 사영, y축이면 xz 사영
+    print(f"dir: {dir} / axis: {axis_idx}")
     ax2.scatter(transformed_data[:, axis_idx], transformed_data[:, 2], label=ax2_label, s=5)     # 주축에 따라서 축 설정
 
     # ax2.scatter(projected_points[:, 0], projected_points[:, 1], label='Projected Points', s=1)
