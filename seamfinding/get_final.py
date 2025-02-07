@@ -183,7 +183,13 @@ def process_3d_data(points, origin_points, degree):
     # inv_points = pca.inverse_transform(minima)          # pca -> 원 좌표계 복구
     # print(f"역변환 좌표: {inv_points}")
 
-    min_idx = find_closest_index(minima[0], x)
+    # min_idx = find_closest_index(minima[0], x)
+    # 회귀 추정된 점과 가장 가까운 원 데이터의 index
+    if minima[0] == None:
+        min_idx = len(points) // 2
+    else:
+        min_idx = find_closest_index(minima[0], x)
+
     inv_points = points[min_idx]
     print(f"역변환 좌표: {inv_points}")
 
@@ -207,7 +213,7 @@ if __name__ == "__main__":
     points = np.loadtxt("./data/8_single_bevel.txt")
     # x, y, z = points[:, 0], points[:, 1], points[:, 2]
 
-    axis_idx = 1
+    axis_idx = "Y"
 
     points -= points[0]
 
