@@ -5,7 +5,6 @@ import copy
 import matplotlib.pyplot as plt
 
 import cv2
-from scipy.ndimage import convolve
 
 # Step1: 좌표계 설정 및 회전 변환
 def rotation_formula(data, dir):
@@ -57,89 +56,18 @@ def rotation_formula(data, dir):
     return transformed_data
 
 
-''' ---------------------------------------------------- '''
-def gaussian_kernel(size=5, sigma=1.5):
-    """ size x size 크기의 가우시안 커널 생성 """
-    ax = np.linspace(-(size // 2), size // 2, size)
-    xx, yy = np.meshgrid(ax, ax)
-    kernel = np.exp(-(xx**2 + yy**2) / (2 * sigma**2))
-    return kernel / np.sum(kernel)  # 합이 1이 되도록 정규화
-
-def sobel_filter(image):    
-    # Sobel 커널 정의
-    Gx = np.array([[-1, 0, 1], 
-                   [-2, 0, 2], 
-                   [-1, 0, 1]], dtype=np.float32)
-
-    Gy = np.array([[-1, -2, -1], 
-                   [0,  0,  0], 
-                   [1,  2,  1]], dtype=np.float32)
-    
-    # 이미지 크기
-    height, width = image.shape
-    print('이미지: ', image.shape, height, width)
-
-    #결과 저장 배열 초기화
-    grad_x = np.zeros_like(image, dtype=np.float32)
-    grad_y = np.zeros_like(image, dtype=np.float32)
-
-    for y in range(1, height - 1):
-        for x in range(1, width - 1):
-            region = image[y-1:y+2, x-1:x+2]
-            grad_x[y, x] = np.sum(region * Gx)      # 수평 방향
-            grad_y[y, x] = np.sum(region * Gy)      # 수직 방향
-
-    # 컨볼루션 적용
-    # sobel_x = convolve(image, Gx, mode='constant', cval=0.0)
-    # sobel_y = convolve(image, Gy, mode='constant', cval=0.0)
-
-    # 최종 그래디언트 크기 계산
-    gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
-
-    return grad_x, grad_y, gradient_magnitude
-''' ---------------------------------------------------- '''
-
-
-def sobel_filter_1d(val, scale=1, delta=0):
-    # 1d 타입 커널 형성
-    kernel = np.array([-1, 0, 1])
-
-    # 데이터 타입을 np.float64로 변환
-    val = val.astype(np.float64)
-
-    sobel_ = np.zeros_like(val, dtype=np.float64)       # 초기화 과정
-
-    # 경계 처리를 위한 반사 패딩 (reflect padding)
-    padded_ = np.pad(val, pad_width=1, mode='reflect')  # 양 옆에 1개의 요소를 반사 패딩으로 추가
-
-    for i in range(1, len(val) - 1):
-        sobel_[i] = np.sum(kernel * padded_[i-1 : i+2])
-
-    # 정규화
-    sobel_ = scale * sobel_ + delta
-
-    # 배열 모양 맞추기
-    sobel_ = sobel_.reshape(-1, 1)
-
-    return sobel_
-
-
 def plot_3d(weld_type, origin_points, dir, rot_points, x, y, filter_thres):
+    image = np.vstack((x, y)).T
+
+    # 노이즈 제거를 위한 가우시안 필터 적용
+    image_smooth = cv2.GaussianBlur(image.astype(np.float32), (5, 5), 1.5)
+
     # Sobel 필터 적용
-    # cv2.Sobel(src, ddepth, dx, dy, dst=None, ksize=None, scale=None, delta=None, borderType=None)
+    sobel_x = cv2.Sobel(image_smooth, cv2.CV_64F, 1, 0, ksize=3)  # 수직
+    sobel_y = cv2.Sobel(image_smooth, cv2.CV_64F, 0, 1, ksize=3)  # 수직
 
-    # x, y 모두 좌표로 1d 타입. dx=1을 줘도 의미가 없음.
-    # sobel_x = cv2.Sobel(y, cv2.CV_64F, 0, 1, ksize=3)  # 수직
-    # sobel_y = cv2.Sobel(y, cv2.CV_64F, 0, 1, ksize=3)  # 수직
-
-    sobel_ = sobel_filter_1d(y)
-
-    # 엣지 세기 계산 -- y의 결과가 음수로 나오면 이상하게 나와서 필요하긴 하겠음!!
-    try:
-        edges = np.sqrt(sobel_x**2 + sobel_**2)
-    except:
-        print('sobel_x not defined')
-        edges = np.sqrt(sobel_**2)
+    # 엣지 세기 계산
+    edges = np.sqrt(sobel_x**2 + sobel_y**2)
 
     #-------------------------------------
     # 시각화 하기
@@ -160,14 +88,14 @@ def plot_3d(weld_type, origin_points, dir, rot_points, x, y, filter_thres):
     ax2.set_title('Sobel Filter')
     # ax2.axis('off')  # x, y 축을 숨깁니다.
 
-    # 필터 적용 결과 좌표 표시 (원본 데이터 위에 표시) & 해당 index 저장
     idx = []
+    # 필터 적용 결과 좌표 표시 (원본 데이터 위에 표시)
     for i in range(len(x)):
-        if edges[i] > np.max(edges) * filter_thres:  # 필터 결과가 특정 값 이상인 경우
+        if edges[i][0] > np.max(edges) * filter_thres:  # 필터 결과가 특정 값 이상인 경우
             ax.text(x[i], y[i], f'({x[i]:.2f}, {y[i]:.2f})', fontsize=8, color='red')
             idx.append(i)
-    print(f'엣지 후보군: {idx}')
-    
+
+    print(idx)
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # 위에 제목 공간을 확보
     plt.show()
 
@@ -200,18 +128,18 @@ def process_3d_data(weld_type, points, dir, filter_thres=0.3):
 if __name__ == "__main__":
     # 데이터 불러오기
     # weld_type = "1_fillet_gap"
-    weld_type = "4_butt_wide"
+    weld_type = "5_butt_wide_2"
     # weld_type = "6_butt_narrow"
     # weld_type = "8_single_bevel"
     points = np.loadtxt(f"./data/{weld_type}.txt")
 
-    # 값 입력하기(다항식 차수, 회전 방향(진행 방향), 직선 회귀 데이터: 갯수/반복 횟수/임계값)\
+    # 값 입력하기(다항식 차수, 회전 방향(진행 방향), 직선 회귀 데이터: 갯수/반복 횟수/임계값)
 
     # 센서 게더링 방향(== 툴 이동 방향)
     axis_dir = "X"
 
     # sobel filter 임계값
-    filter_thres = 0.4
+    filter_thres = 0.6
 
     # main 함수 호출
     process_3d_data(weld_type, points, axis_dir, filter_thres)
