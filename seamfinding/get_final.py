@@ -112,8 +112,9 @@ def find_closest_index(min_x, x_range):
 # 옆에 함수 가져오기 -- test_final fit_line_ransac
 
 # Step 5: Visualization utility
-def plot_3d(points, origin_points, projected_points, poly_ransac, poly_x, poly_y, minima, plane_origin, plane_normal_1, plane_normal_2, line_1, line_2, inv_points=None):
+def plot_3d(weld_type, points, origin_points, projected_points, poly_ransac, poly_x, poly_y, minima, plane_origin, plane_normal_1, plane_normal_2, line_1, line_2, inv_points=None):
     fig = plt.figure(figsize=(12, 6))
+    fig.canvas.manager.set_window_title(f"{weld_type}")
     
     # Original 3D points
     ax = fig.add_subplot(121, projection='3d')
@@ -155,10 +156,11 @@ def plot_3d(points, origin_points, projected_points, poly_ransac, poly_x, poly_y
     ax2.set_title("2D Projected Points and Fitted Curve")
     ax2.legend()
     
+    fig.suptitle(f"type: {weld_type}", fontsize=16)
     plt.show()
 
 # Main pipeline
-def process_3d_data(points, origin_points, degree):
+def process_3d_data(weld_type, points, origin_points, degree):
     projected_points, pca, origin, normal_1, normal_2 = estimate_plane_pca(points)
     print(f"main normal: {normal_1}")
     print(f"sub normal: {normal_2}")
@@ -204,13 +206,14 @@ def process_3d_data(points, origin_points, degree):
     # print("Best start_line model (p1, dir_1)/inliers:", start_line, start_line_inliers)
     # print("Best end_line model (p2, dir_2)/inliers:", end_line, end_line_inliers)
 
-    plot_3d(points, origin_points, projected_points, ransac, x, y_fit, minima, origin, normal_1, normal_2, start_line, end_line, inv_points)
+    plot_3d(weld_type, points, origin_points, projected_points, ransac, x, y_fit, minima, origin, normal_1, normal_2, start_line, end_line, inv_points)
 
 from 로드리게즈_변환 import rotation_formula
 
 # Example usage
 if __name__ == "__main__":
-    points = np.loadtxt("./data/8_single_bevel.txt")
+    weld_type = "8_single_bevel"
+    points = np.loadtxt(f"./data/{weld_type}.txt")
     # x, y, z = points[:, 0], points[:, 1], points[:, 2]
 
     axis_idx = "Y"
@@ -226,4 +229,4 @@ if __name__ == "__main__":
     # print(f'Vec(start->end): {vector}')
 
     n_degree = 3
-    process_3d_data(points, origin_points, degree=n_degree)
+    process_3d_data(weld_type, points, origin_points, degree=n_degree)

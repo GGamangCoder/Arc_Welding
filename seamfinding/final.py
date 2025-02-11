@@ -183,10 +183,11 @@ def fit_line_ransac(points, n_iterations=100, threshold=0.1):
 
 
 # Step 6: Visualization utility
-def plot_3d(origin_points, dir, rot_points, projected_points, poly_x, poly_y, line_1, line_2, minima, idx=None):
+def plot_3d(weld_type, origin_points, dir, rot_points, projected_points, poly_x, poly_y, line_1, line_2, minima, idx=None):
 
     fig = plt.figure(figsize=(12, 6))
-    
+    fig.canvas.manager.set_window_title(f"{weld_type}")
+
     # Original 3D points
     ax = fig.add_subplot(121, projection='3d')
     ax.scatter(origin_points[:, 0], origin_points[:, 1], origin_points[:, 2], label='Origin points', color='g', s=5)
@@ -235,10 +236,12 @@ def plot_3d(origin_points, dir, rot_points, projected_points, poly_x, poly_y, li
     ax2.set_title("2D Projected Points and Fitted Curve")
     ax2.legend()
 
+    fig.suptitle(f"type: {weld_type}", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # 위에 제목 공간을 확보
     plt.show()
 
 # Main pipeline
-def process_3d_data(points, n_degree, dir, count, iterations, threshold):
+def process_3d_data(weld_type, points, n_degree, dir, count, iterations, threshold):
     # 원래 포인트 복사
     # origin_points = copy.deepcopy(points)
     origin_points = points
@@ -250,7 +253,7 @@ def process_3d_data(points, n_degree, dir, count, iterations, threshold):
     # 데이터 회전 변환(좌표계 설정)
     rotation_points = rotation_formula(points, dir)
     
-    # X 축으로 정렬하면 xz 평면을, Y축일 경우에는 yz 평면을 본다.       -- 이 부분이 이상함 ..
+    # X 축으로 정렬하면 xz 평면을, Y축일 경우에는 yz 평면을 본다.
     if dir == "X":
         proj_plane_points = rotation_points[:, [0, 2]]
     elif dir == "Y":
@@ -288,12 +291,13 @@ def process_3d_data(points, n_degree, dir, count, iterations, threshold):
 
     # rotation_points += first_point
     
-    plot_3d(origin_points, dir, rotation_points, proj_plane_points, X, Y_fit, start_line, end_line, minima, min_idx)
+    plot_3d(weld_type, origin_points, dir, rotation_points, proj_plane_points, X, Y_fit, start_line, end_line, minima, min_idx)
 
 
 if __name__ == "__main__":
     # 데이터 불러오기
-    points = np.loadtxt("./data/6_butt_narrow.txt")
+    weld_type = "6_butt_narrow"
+    points = np.loadtxt(f"./data/{weld_type}.txt")
 
     # 값 입력하기(다항식 차수, 회전 방향(진행 방향), 직선 회귀 데이터: 갯수/반복 횟수/임계값)
     # 다항식 차수 결정
@@ -308,4 +312,4 @@ if __name__ == "__main__":
     threshold = 0.05         # 임계값, 기본값 0.1
 
     # main 함수 호출
-    process_3d_data(points, degree, axis_dir, data_count, iterations, threshold)
+    process_3d_data(weld_type, points, degree, axis_dir, data_count, iterations, threshold)
