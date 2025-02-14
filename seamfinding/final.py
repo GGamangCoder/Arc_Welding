@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 
 from line_to_line import closestDistanceBetweenLines
 
+GROOVE_TYPE = 0
+BUTT_TYPE = 1
 
 # Step1: 좌표계 설정 및 회전 변환
 def rotation_formula(data, dir):
@@ -141,7 +143,64 @@ def find_closest_index(min_x, x_range):
     closest_index = np.argmin(np.abs(x_range - min_x))
     return closest_index
 
-# Step 4: RANSAC for line fitting near the minima
+# Step 4: 최저점 기준으로 평평한 부분 구하기
+def get_welding_type(points, idx, threshold=0.5):
+    x, y = points[:, 0], points[:, 1]
+    # 1차 미분값 계산
+    dy_dx = np.gradient(y, x)
+
+    left_idx = idx
+    while (left_idx > 0) and (abs(dy_dx[left_idx]) < threshold):
+        left_idx -= 1
+
+    right_idx = idx
+    while (right_idx < len(points)) and (abs(dy_dx[right_idx]) < threshold):
+        right_idx += 1
+
+    print('left/right idx: ', left_idx, right_idx)
+    print(f'left/right X val: {points[left_idx][0]:.6f}, {points[right_idx][0]:.6f}')
+
+    return left_idx, right_idx
+
+# Step 4-1: 평면에서 두 점 사이의 거리
+def distance(p1, p2):
+    x1, y1 = p1
+    x2, y2 = p2
+    distance = ((x2 - x1) ** 2 + (y2 - y1) ** 2 ) ** 0.5
+
+    return distance
+
+# Step5: 형상에 따라 최종 seam point를 찾아 해당 인덱스 혹은 좌표를 반환하는 함수
+# Step5-1: 현재 형상이 groove(계곡)인 경우
+def process_groove_type(points, idx, cnt, iter, threshold):
+    # 직선 회귀 점들 추출: 기준점으로부터 양 쪽으로 count 만큼
+    start_points = points[idx - cnt : idx, :]
+    end_points = points[idx : idx + cnt, :]
+
+    start_line, start_line_inliers = fit_line_ransac(start_points, iter, threshold)
+    end_line, end_line_inliers = fit_line_ransac(end_points, iter, threshold)
+
+    # print(f"start line 인라이어(개): {start_line_inliers} / {len(start_points)}")
+    # print(f"end line 인라이어(개): {end_line_inliers} / {len(end_points)}")
+
+    p1, direction_1 = start_line
+    line_1_points = np.array([p1 + t * direction_1 for t in np.linspace(-25, 25, 10)])          # 숫자는 그냥 스케일이라 시각화에만 관여
+
+    p2, direction_2 = end_line
+    line_2_points = np.array([p2 + t * direction_2 for t in np.linspace(-25, 25, 10)])
+
+    intersection_1, intersection_2, dist_1_to_2 = closestDistanceBetweenLines(p1, p1+direction_1, p2, p2+direction_2)
+
+    return start_line, end_line, intersection_1
+
+# Step5-2: 
+def process_butt_type(left, right):
+    seam_idx = (left + right) // 2
+
+    return seam_idx
+
+
+# Step 5: RANSAC for line fitting near the minima
 def fit_line_ransac(points, n_iterations=100, threshold=0.1):
     """
     RANSAC으로 직선 회귀 추정
@@ -182,40 +241,36 @@ def fit_line_ransac(points, n_iterations=100, threshold=0.1):
 # Step 5: 최종 결과(Seam) 반환하는 부분
 
 
-# Step 6: Visualization utility
-def plot_3d(weld_type, origin_points, dir, rot_points, projected_points, poly_x, poly_y, line_1, line_2, minima, idx=None):
+# Step Final: Visualization utility
+def plot_3d(weld_type, origin_points, dir, rot_points, projected_points, poly_x, poly_y, line_1, line_2, min_idx, seam):
 
     fig = plt.figure(figsize=(12, 6))
     fig.canvas.manager.set_window_title(f"{weld_type}")
 
     # Original 3D points
     ax = fig.add_subplot(121, projection='3d')
-    ax.scatter(origin_points[:, 0], origin_points[:, 1], origin_points[:, 2], label='Origin points', color='g', s=5)
+    ax.scatter(origin_points[:, 0], origin_points[:, 1], origin_points[:, 2], label='Origin Points', color='g', s=5)
     ax.scatter(rot_points[:, 0], rot_points[:, 1], rot_points[:, 2], label='Formula Points', color='b', s=5)
-    if idx == None:
-        print("유효한 최솟값을 찾을 수 없습니다.")
+
+    ax.scatter(origin_points[min_idx][0], origin_points[min_idx][1], origin_points[min_idx][2], label='Minima Point', color='r', s=20)
+
+    if welding_type == BUTT_TYPE:
+        seam_idx = seam
+        seam_point = origin_points[seam_idx]
+        ax.scatter(seam_point[0], seam_point[1], seam_point[2], label='Seam Point', color='#39FF14', s=20)
+        print(f"seam_idx / total: {seam_idx} / {len(origin_points)}")
+        print(f"3차원 위 좌표: {seam_point}")
     else:
-        min_point = origin_points[idx]
-        ax.scatter(min_point[0], min_point[1], min_point[2], label='minima points', color='r', s=20)
-        print(f"min_idx: {idx}")
-        print(f"3차원 위 좌표: {min_point}")
+        p1, direction_1 = line_1
+        line_1_points = np.array([p1 + t * direction_1 for t in np.linspace(-25, 25, 10)])          # 숫자는 그냥 스케일이라 시각화에만 관여
+        ax.plot(line_1_points[:, 0], line_1_points[:, 1], line_1_points[:, 2], color='#FFFF00', label='Start line')
 
-    #########################################################
-    # 직선 그리기 - 그래프 길이는 조절 가능 & 교점 찾기
-    p1, direction_1 = line_1
-    line_1_points = np.array([p1 + t * direction_1 for t in np.linspace(-25, 25, 10)])          # 숫자는 그냥 스케일이라 시각화에만 관여
+        p2, direction_2 = line_2
+        line_2_points = np.array([p2 + t * direction_2 for t in np.linspace(-25, 25, 10)])
+        ax.plot(line_2_points[:, 0], line_2_points[:, 1], line_2_points[:, 2], color='#FFA500', label='End line')
 
-    ax.plot(line_1_points[:, 0], line_1_points[:, 1], line_1_points[:, 2], color='cyan', label='fitting line_1')
-
-    p2, direction_2 = line_2
-    line_2_points = np.array([p2 + t * direction_2 for t in np.linspace(-25, 25, 10)])
-
-    ax.plot(line_2_points[:, 0], line_2_points[:, 1], line_2_points[:, 2], color='navy', label='fitting line_2')
-
-    intersection_1, intersection_2, dist_1_to_2 = closestDistanceBetweenLines(p1, p1+direction_1, p2, p2+direction_2)
-    ax.scatter(intersection_1[0], intersection_1[1], intersection_1[2], color='darkred', s=20)
-    # ax.scatter(intersection_2[0], intersection_2[1], intersection_2[2], color='darkred', s=50)
-    #########################################################
+        print(f'seam 좌표: {seam}')
+        ax.scatter(seam[0], seam[1], seam[2], label='Formula Points', color='r', s=20)
 
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
@@ -228,7 +283,11 @@ def plot_3d(weld_type, origin_points, dir, rot_points, projected_points, poly_x,
     ax2 = fig.add_subplot(122)
     ax2.scatter(projected_points[:, 0], projected_points[:, 1], label='Projected Points', s=1)
     ax2.plot(poly_x, poly_y, color='orange', label='Fitted Polynomial')
-    ax2.scatter(minima[0], minima[1], label='Minima', color='r', s=20)
+    ax2.scatter(projected_points[min_idx][0], projected_points[min_idx][1], label='Minima', color='r', s=20)
+    if welding_type == BUTT_TYPE:
+        seam_idx = seam
+        seam_point = projected_points[seam_idx]
+        ax2.scatter(seam_point[0], seam_point[1], label='Seam point', color='#39FF14', s=20)
 
     ax2.set_xlabel(f'{dir}')
     ax2.set_ylabel('Z')
@@ -268,35 +327,49 @@ def process_3d_data(weld_type, points, n_degree, dir, count, iterations, thresho
     poly_coefficients = ransac.estimator_.coef_
     poly_intercept = ransac.estimator_.intercept_
     poly_coefficients[0] = poly_intercept       # y 절편까지 반영
-    print(f"{n_degree}차 방정식 계수: {poly_coefficients}")
+    # print(f"{n_degree}차 방정식 계수: {poly_coefficients}")
 
     # 회귀 곡선에서 최저점
     minima = find_global_minima(poly_coefficients, X)
 
     # 회귀 추정된 점과 가장 가까운 원 데이터의 index
     if minima[0] == None:
+        print('minima is not defined')
         min_idx = len(points) // 2
     else:
+        print('minima is defined')
         min_idx = find_closest_index(minima[0], X)
 
-    # 직선 회귀 점들 추출: 기준점으로부터 양 쪽으로 count 만큼
-    start_points = origin_points[min_idx - count : min_idx, :]
-    end_points = origin_points[min_idx : min_idx + count, :]
+    # 여기에서 부재 타입 결정하는 함수 추가.
+    plane_threshold = 0.5       # 평평한 경우에는 미분값이 거의 0에 수렴, default 기울기를 0.5로 했으나 실험 결과로 결정 필요
+    left_idx, right_idx = get_welding_type(proj_plane_points, min_idx, threshold=plane_threshold)
 
-    start_line, start_line_inliers = fit_line_ransac(start_points, iterations, threshold)
-    end_line, end_line_inliers = fit_line_ransac(end_points, iterations, threshold)
+    # 바닥 평평한 면의 길이
+    bottom_distance = distance(proj_plane_points[left_idx], proj_plane_points[right_idx])
+    print(f'바닥 길이: {bottom_distance}')
 
-    print(f"start line 인라이어(개): {start_line_inliers}")
-    print(f"end line 인라이어(개): {end_line_inliers}")
+    dist_criteria = 0.5       # 단위는 cm, 현재 오차 고려 0.5cm
+    global welding_type
+    if bottom_distance < dist_criteria:
+        welding_type = GROOVE_TYPE
+        start_line, end_line, intersect = process_groove_type(origin_points, min_idx, count, iterations, threshold)
+        seam = intersect                                    # 여기서는 seam 좌표
+    else:
+        welding_type = BUTT_TYPE
+        seam = process_butt_type(left_idx, right_idx)       # 여기서는 seam 인덱스
+        start_line, end_line = None, None
 
     # rotation_points += first_point
     
-    plot_3d(weld_type, origin_points, dir, rotation_points, proj_plane_points, X, Y_fit, start_line, end_line, minima, min_idx)
+    # 형상에 따라 seam이냐 seam_idx냐 구분
+    plot_3d(weld_type, origin_points, dir, rotation_points, proj_plane_points, X, Y_fit, start_line, end_line, min_idx, seam)
 
 
 if __name__ == "__main__":
     # 데이터 불러오기
-    weld_type = "6_butt_narrow"
+    # weld_type = "0_fillet"
+    weld_type = "3_circle_hole"
+    # weld_type = "4_butt_wide"
     points = np.loadtxt(f"./data/{weld_type}.txt")
 
     # 값 입력하기(다항식 차수, 회전 방향(진행 방향), 직선 회귀 데이터: 갯수/반복 횟수/임계값)
