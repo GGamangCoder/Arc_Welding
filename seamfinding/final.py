@@ -1,10 +1,10 @@
 '''
 0. 3차원 점들을 원점으로 이동
 1. 방향성 없는 점들의 좌표계 설정 - 이동방향 기준 X 축 혹은 Y축(로드리게즈 회전 변환)
-2. 평면 추정하여 n차 곡선 회귀 추정 - RANSAC
-3. 1차 도함수를 이용해 최저점 찾기
-4. 3번에서 찾은 점을 기준으로 좌우 직선 RANSAC
-5. 최종 seam finding 
+2. 한 평면(XZ 혹은 YZ)으로 사영하여 다항 회귀 추정 - RANSAC
+3. global minima를 찾아 근접 인덱스 구하기
+4. 찾은 인덱스 전/후 미분값을 통해 직선 구간 구하기 -> 모재 결정
+5. 모재에 따라 seam finding(최종 seam 결정)
 6. 해당 결과 시각화
 '''
 
@@ -18,10 +18,28 @@ from sklearn.preprocessing import PolynomialFeatures
 from numpy.polynomial.polynomial import Polynomial
 import matplotlib.pyplot as plt
 
-from line_to_line import closestDistanceBetweenLines
+from line_to_line import closestDistanceBetweenLines        # Hi6 PlyUtlCalculateXLine 함수 통해서 결정
 
+# 글로벌 변수 선언 - cpp define
 GROOVE_TYPE = 0
 BUTT_TYPE = 1
+
+
+'''---------------------------- 공통 함수 - 직접 구현 ----------------------------'''
+# 평면에서 두 점 사이의 거리
+def distance(p1, p2):
+    x1, y1 = p1
+    x2, y2 = p2
+    distance = ((x2 - x1) ** 2 + (y2 - y1) ** 2 ) ** 0.5
+
+    return distance
+
+# 벡터의 크기 구하는 함수
+def norm(vec):
+    norm_vector = (vec[0]**2 + vec[1]**2 + vec[2]**2) ** 0.5
+    
+    return norm_vector
+
 
 # Step1: 좌표계 설정 및 회전 변환
 def rotation_formula(data, dir):
@@ -40,7 +58,7 @@ def rotation_formula(data, dir):
     P_end = data[-11]
     vector = P_end - P_start
 
-    unit_vector = vector / np.linalg.norm(vector)    # 단위 벡터 변환
+    unit_vector = vector / norm(vector)    # 단위 벡터 변환
 
     # 로봇 이동 방향(데이터 수집)을 회전축으로 사용
     if dir == "X":
@@ -73,7 +91,7 @@ def rotation_formula(data, dir):
     return transformed_data
 
 
-# Step2: 다항식 회귀
+# Step 2: 다항식 회귀
 def fit_polynomial_ransac(points, degree=4):
     """
     n차 다항식 회귀 추정
@@ -100,7 +118,7 @@ def fit_polynomial_ransac(points, degree=4):
     return ransac, x, y, y_fit
 
 
-# Step3: 특이점 찾기
+# Step 3: 특이점 찾기
 def find_global_minima(poly_coefficients, x_range):
     """
     global minima 찾기
@@ -130,24 +148,73 @@ def find_global_minima(poly_coefficients, x_range):
 
     if minima_candidates:
         y_values = [poly(x) for x in minima_candidates]
-        min_index = np.argmin(y_values)
+        # min_index = np.argmin(y_values)
+        min_index = get_smallest_index(y_values)
         min_x, min_y = minima_candidates[min_index], y_values[min_index]
         return [min_x, min_y]
     else:
         # raise ValueError("유효한 최솟값을 찾을 수 없습니다. 주어진 x 범위 내에 최솟값이 없습니다.")
         return [None, None]
 
+# Step 3-1: 주어진 배열에서 가장 작은 값의 인덱스 반환 함수
+def get_smallest_index(arr):
+    min_value = arr[0]
+    min_index = 0
 
-# Step 3-1: 찾은 결과와 가장 가까운 데이터(인덱스) 구하기
-def find_closest_index(min_x, x_range):
-    closest_index = np.argmin(np.abs(x_range - min_x))
+    for i in range(1, len(arr)):  # 첫 번째 값을 제외한 나머지 값들에 대해
+        if arr[i] < min_value:
+            min_value = arr[i]
+            min_index = i
+
+    return min_index
+
+# Step 3-2: 찾은 결과와 가장 가까운 데이터(인덱스) 구하기
+def find_closest_index(x_range, min_x):
+    # numpy 내장 라이브러리 활용
+    # closest_index = np.argmin(np.abs(x_range - min_x))
+
+    closest_index = -1       # index는 무조건 0 ~ len(x_range) 사이를 가질 수 밖에 없음.
+    min_diff = float('inf')
+
+    i = 0
+    for x in x_range:
+        diff = abs(x - min_x)
+        if diff < min_diff:
+            min_diff = diff
+            closest_index = i
+        i += 1
+
     return closest_index
 
-# Step 4: 최저점 기준으로 평평한 부분 구하기
-def get_welding_type(points, idx, threshold=0.5):
+
+# Step 4: 최저점 기준으로 평평한 직선 부분 구하기
+def get_flat_line(points, idx, threshold=0.5):
+    """
+    주어진 점에서의 1차 미분값을 계산하고, 주어진 threshold보다 작은 미분값을 갖는 구간을 찾는다.
+
+    params:
+        points (ndarray): x, y 좌표들을 포함하는 2D 배열
+        idx (int): 기준점의 인덱스
+        threshold (float): 미분값의 임계값
+
+    return:
+        left_idx (int): 미분값이 threshold 이상인 가장 왼쪽 인덱스
+        right_idx (int): 미분값이 threshold 이상인 가장 오른쪽 인덱스
+    """
     x, y = points[:, 0], points[:, 1]
-    # 1차 미분값 계산
-    dy_dx = np.gradient(y, x)
+
+    # 라이브러리 이용
+    # dy_dx = np.gradient(y, x)
+
+    dy_dx = [0] * len(y)  # dy_dx를 저장할 리스트 초기화
+
+    # 중앙 차분 계산 (0 < i < len(y)-1 범위에서)
+    for i in range(1, len(y) - 1):
+        dy_dx[i] = (y[i + 1] - y[i - 1]) / (x[i + 1] - x[i - 1])
+
+    # 첫 번째 점과 마지막 점은 앞 차분과 뒤 차분으로 처리
+    dy_dx[0] = (y[1] - y[0]) / (x[1] - x[0])  # 앞 차분
+    dy_dx[-1] = (y[-1] - y[-2]) / (x[-1] - x[-2])  # 뒤 차분
 
     left_idx = idx
     while (left_idx > 0) and (abs(dy_dx[left_idx]) < threshold):
@@ -162,16 +229,8 @@ def get_welding_type(points, idx, threshold=0.5):
 
     return left_idx, right_idx
 
-# Step 4-1: 평면에서 두 점 사이의 거리
-def distance(p1, p2):
-    x1, y1 = p1
-    x2, y2 = p2
-    distance = ((x2 - x1) ** 2 + (y2 - y1) ** 2 ) ** 0.5
-
-    return distance
-
-# Step5: 형상에 따라 최종 seam point를 찾아 해당 인덱스 혹은 좌표를 반환하는 함수
-# Step5-1: 현재 형상이 groove(계곡)인 경우
+# Step 5: 형상에 따라 최종 seam point를 찾아 해당 인덱스 혹은 좌표를 반환하는 함수
+# Step 5-1: 현재 형상이 groove(계곡)인 경우
 def process_groove_type(points, idx, cnt, iter, threshold):
     # 직선 회귀 점들 추출: 기준점으로부터 양 쪽으로 count 만큼
     start_points = points[idx - cnt : idx, :]
@@ -193,14 +252,14 @@ def process_groove_type(points, idx, cnt, iter, threshold):
 
     return start_line, end_line, intersection_1
 
-# Step5-2: 
+# Step 5-2: 현재 형상이 butt(평평한 모재 접합)인 경우 -- 중간값
+# 바닥 직선에서 직선 회귀 통해 구간의 가운데로 하니 오히려 오차가 더 발생함.
 def process_butt_type(left, right):
     seam_idx = (left + right) // 2
 
     return seam_idx
 
-
-# Step 5: RANSAC for line fitting near the minima
+# RANSAC for line fitting near the minima
 def fit_line_ransac(points, n_iterations=100, threshold=0.1):
     """
     RANSAC으로 직선 회귀 추정
@@ -223,12 +282,12 @@ def fit_line_ransac(points, n_iterations=100, threshold=0.1):
 
         # 직선의 방향 벡터
         direction = p2 - p1
-        direction = direction / np.linalg.norm(direction)
+        direction = direction / norm(direction)
 
         inliers_cnt = 0
         for point in points:
-            cross_prod = np.linalg.norm(np.cross(point - p1, direction))
-            dist_point2line = cross_prod / np.linalg.norm(direction)
+            cross_prod = norm(np.cross(point - p1, direction))
+            dist_point2line = cross_prod / norm(direction)
             if dist_point2line < threshold:
                 inliers_cnt += 1
 
@@ -237,8 +296,6 @@ def fit_line_ransac(points, n_iterations=100, threshold=0.1):
             best_line = (p1, direction)
         
     return best_line, best_inliers_cnt
-
-# Step 5: 최종 결과(Seam) 반환하는 부분
 
 
 # Step Final: Visualization utility
@@ -249,8 +306,8 @@ def plot_3d(weld_type, origin_points, dir, rot_points, projected_points, poly_x,
 
     # Original 3D points
     ax = fig.add_subplot(121, projection='3d')
-    ax.scatter(origin_points[:, 0], origin_points[:, 1], origin_points[:, 2], label='Origin Points', color='g', s=5)
-    ax.scatter(rot_points[:, 0], rot_points[:, 1], rot_points[:, 2], label='Formula Points', color='b', s=5)
+    ax.scatter(origin_points[:, 0], origin_points[:, 1], origin_points[:, 2], label='Origin Points', color='g', s=2)
+    ax.scatter(rot_points[:, 0], rot_points[:, 1], rot_points[:, 2], label='Formula Points', color='b', s=2)
 
     ax.scatter(origin_points[min_idx][0], origin_points[min_idx][1], origin_points[min_idx][2], label='Minima Point', color='r', s=20)
 
@@ -259,7 +316,7 @@ def plot_3d(weld_type, origin_points, dir, rot_points, projected_points, poly_x,
         seam_point = origin_points[seam_idx]
         ax.scatter(seam_point[0], seam_point[1], seam_point[2], label='Seam Point', color='#39FF14', s=20)
         print(f"seam_idx / total: {seam_idx} / {len(origin_points)}")
-        print(f"3차원 위 좌표: {seam_point}")
+        print(f"seam 좌표: {seam_point}")
     else:
         p1, direction_1 = line_1
         line_1_points = np.array([p1 + t * direction_1 for t in np.linspace(-25, 25, 10)])          # 숫자는 그냥 스케일이라 시각화에만 관여
@@ -269,8 +326,8 @@ def plot_3d(weld_type, origin_points, dir, rot_points, projected_points, poly_x,
         line_2_points = np.array([p2 + t * direction_2 for t in np.linspace(-25, 25, 10)])
         ax.plot(line_2_points[:, 0], line_2_points[:, 1], line_2_points[:, 2], color='#FFA500', label='End line')
 
-        print(f'seam 좌표: {seam}')
-        ax.scatter(seam[0], seam[1], seam[2], label='Formula Points', color='r', s=20)
+        print(f'seam 좌표: [ {seam[0]:.6f} {seam[1]:.6f} {seam[2]:.6f} ]')
+        ax.scatter(seam[0], seam[1], seam[2], label='Seam Point', color='#39FF14', s=20)
 
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
@@ -338,15 +395,15 @@ def process_3d_data(weld_type, points, n_degree, dir, count, iterations, thresho
         min_idx = len(points) // 2
     else:
         print('minima is defined')
-        min_idx = find_closest_index(minima[0], X)
+        min_idx = find_closest_index(X, minima[0])
 
-    # 여기에서 부재 타입 결정하는 함수 추가.
+    # 여기에서 모재 타입 결정하는 함수 추가.
     plane_threshold = 0.5       # 평평한 경우에는 미분값이 거의 0에 수렴, default 기울기를 0.5로 했으나 실험 결과로 결정 필요
-    left_idx, right_idx = get_welding_type(proj_plane_points, min_idx, threshold=plane_threshold)
+    left_idx, right_idx = get_flat_line(proj_plane_points, min_idx, threshold=plane_threshold)
 
     # 바닥 평평한 면의 길이
     bottom_distance = distance(proj_plane_points[left_idx], proj_plane_points[right_idx])
-    print(f'바닥 길이: {bottom_distance}')
+    print(f'바닥 길이: {bottom_distance:.6f}')
 
     dist_criteria = 0.5       # 단위는 cm, 현재 오차 고려 0.5cm
     global welding_type
@@ -357,7 +414,7 @@ def process_3d_data(weld_type, points, n_degree, dir, count, iterations, thresho
     else:
         welding_type = BUTT_TYPE
         seam = process_butt_type(left_idx, right_idx)       # 여기서는 seam 인덱스
-        start_line, end_line = None, None
+        start_line, end_line = None, None       # 미사용
 
     # rotation_points += first_point
     
@@ -368,19 +425,25 @@ def process_3d_data(weld_type, points, n_degree, dir, count, iterations, thresho
 if __name__ == "__main__":
     # 데이터 불러오기
     # weld_type = "0_fillet"
-    weld_type = "3_circle_hole"
-    # weld_type = "4_butt_wide"
+    # weld_type = "1_fillet_gap"
+    # weld_type = "2_fillet_gap_2"
+    # weld_type = "3_circle_hole"
+    weld_type = "4_butt_wide"
+    # weld_type = "5_butt_wide_2"
+    # weld_type = "6_butt_narrow"
+    # weld_type = "7_butt_narrow_2"
+    # weld_type = "8_single_bevel"
     points = np.loadtxt(f"./data/{weld_type}.txt")
 
     # 값 입력하기(다항식 차수, 회전 방향(진행 방향), 직선 회귀 데이터: 갯수/반복 횟수/임계값)
     # 다항식 차수 결정
-    degree = 4
+    degree = 6
 
     # 센서 게더링 방향(== 툴 이동 방향)
     axis_dir = "X"
 
     # 직선 회귀 데이터
-    data_count = 30         # 데이터 개수
+    data_count = 50         # 데이터 개수
     iterations = 100        # 반복 횟수, 기본값 100
     threshold = 0.05         # 임계값, 기본값 0.1
 
