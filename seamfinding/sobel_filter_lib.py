@@ -57,17 +57,25 @@ def rotation_formula(data, dir):
 
 
 def plot_3d(weld_type, origin_points, dir, rot_points, x, y, filter_thres):
+    '''     데이터 좌표기 때문에 2d 형태로 만들어주는 것이 의미가 없으므로
     image = np.vstack((x, y)).T
 
     # 노이즈 제거를 위한 가우시안 필터 적용
     image_smooth = cv2.GaussianBlur(image.astype(np.float32), (5, 5), 1.5)
+    '''
 
     # Sobel 필터 적용
-    sobel_x = cv2.Sobel(image_smooth, cv2.CV_64F, 1, 0, ksize=3)  # 수직
-    sobel_y = cv2.Sobel(image_smooth, cv2.CV_64F, 0, 1, ksize=3)  # 수직
+    # sobel_x = cv2.Sobel(image_smooth, cv2.CV_64F, 1, 0, ksize=3)  # 수직
+    # sobel_y = cv2.Sobel(image_smooth, cv2.CV_64F, 0, 1, ksize=3)  # 수직
+    # y_2d = y.reshape((-1, 1))
+    # y_smooth = cv2.GaussianBlur(y_2d, (3, 1), 1.0)      # 가우시안 블러는 노이즈 제거에 사용, but 거의 사용x
+    sobel_y = cv2.Sobel(y, -1, 0, 1, ksize=5)
 
     # 엣지 세기 계산
-    edges = np.sqrt(sobel_x**2 + sobel_y**2)
+    try:
+        edges = np.sqrt(sobel_x**2 + sobel_y**2)        # 이 경우는 사실 없다고 보면 됨
+    except:
+        edges = np.sqrt(sobel_y**2)
 
     #-------------------------------------
     # 시각화 하기
@@ -91,11 +99,11 @@ def plot_3d(weld_type, origin_points, dir, rot_points, x, y, filter_thres):
     idx = []
     # 필터 적용 결과 좌표 표시 (원본 데이터 위에 표시)
     for i in range(len(x)):
-        if edges[i][0] > np.max(edges) * filter_thres:  # 필터 결과가 특정 값 이상인 경우
+        if edges[i] > np.max(edges) * filter_thres:  # 필터 결과가 특정 값 이상인 경우
             ax.text(x[i], y[i], f'({x[i]:.2f}, {y[i]:.2f})', fontsize=8, color='red')
             idx.append(i)
+    print(f'엣지 idx: {idx}')
 
-    print(idx)
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # 위에 제목 공간을 확보
     plt.show()
 
@@ -127,8 +135,10 @@ def process_3d_data(weld_type, points, dir, filter_thres=0.3):
 
 if __name__ == "__main__":
     # 데이터 불러오기
-    # weld_type = "1_fillet_gap"
-    weld_type = "5_butt_wide_2"
+    weld_type = "0_fillet"
+    # weld_type = "2_fillet_gap_2"
+    # weld_type = "3_circle_hole"
+    # weld_type = "5_butt_wide_2"
     # weld_type = "6_butt_narrow"
     # weld_type = "8_single_bevel"
     points = np.loadtxt(f"./data/{weld_type}.txt")
@@ -139,7 +149,7 @@ if __name__ == "__main__":
     axis_dir = "X"
 
     # sobel filter 임계값
-    filter_thres = 0.6
+    filter_thres = 0.5
 
     # main 함수 호출
     process_3d_data(weld_type, points, axis_dir, filter_thres)

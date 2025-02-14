@@ -65,6 +65,14 @@ def gaussian_kernel(size=5, sigma=1.5):
     kernel = np.exp(-(xx**2 + yy**2) / (2 * sigma**2))
     return kernel / np.sum(kernel)  # 합이 1이 되도록 정규화
 
+def gaussian_kernel_1d(size, sigma):
+    ''' size: kernel 크기, sigma: 표준 편차 '''
+    x = np.linspace(-(size // 2), size // 2, size)
+    kernel = np.exp(-(x**2) / (2 * sigma**2))
+    kernel /= kernel.sum()      # 합이 1이 되도록 정규화
+
+    return kernel
+
 def sobel_filter(image):    
     # Sobel 커널 정의
     Gx = np.array([[-1, 0, 1], 
@@ -75,29 +83,15 @@ def sobel_filter(image):
                    [0,  0,  0], 
                    [1,  2,  1]], dtype=np.float32)
     
-    # 이미지 크기
-    height, width = image.shape
-    print('이미지: ', image.shape, height, width)
-
-    #결과 저장 배열 초기화
-    grad_x = np.zeros_like(image, dtype=np.float32)
-    grad_y = np.zeros_like(image, dtype=np.float32)
-
-    for y in range(1, height - 1):
-        for x in range(1, width - 1):
-            region = image[y-1:y+2, x-1:x+2]
-            grad_x[y, x] = np.sum(region * Gx)      # 수평 방향
-            grad_y[y, x] = np.sum(region * Gy)      # 수직 방향
 
     # 컨볼루션 적용
-    # sobel_x = convolve(image, Gx, mode='constant', cval=0.0)
-    # sobel_y = convolve(image, Gy, mode='constant', cval=0.0)
+    grad_x = convolve(image, Gx, mode='constant', cval=0.0)
+    grad_y = convolve(image, Gy, mode='constant', cval=0.0)
 
     # 최종 그래디언트 크기 계산
     gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
 
     return grad_x, grad_y, gradient_magnitude
-''' ---------------------------------------------------- '''
 
 
 def sobel_filter_1d(val, scale=1, delta=0):
@@ -110,7 +104,7 @@ def sobel_filter_1d(val, scale=1, delta=0):
     sobel_ = np.zeros_like(val, dtype=np.float64)       # 초기화 과정
 
     # 경계 처리를 위한 반사 패딩 (reflect padding)
-    padded_ = np.pad(val, pad_width=1, mode='reflect')  # 양 옆에 1개의 요소를 반사 패딩으로 추가
+    padded_ = np.pad(val, pad_width=1, mode='reflect')  # 양 옆에 1개의 요소를 반사 패딩으로 추가 == 왼쪽 끝을 안으로, 1번 항목이 0,2 번으로, 2번부터 뒤로 하나씩 밀리기, 맨 뒤에서도 마찬가지, 가운데서 역전되나?
 
     for i in range(1, len(val) - 1):
         sobel_[i] = np.sum(kernel * padded_[i-1 : i+2])
@@ -129,17 +123,36 @@ def plot_3d(weld_type, origin_points, dir, rot_points, x, y, filter_thres):
     # cv2.Sobel(src, ddepth, dx, dy, dst=None, ksize=None, scale=None, delta=None, borderType=None)
 
     # x, y 모두 좌표로 1d 타입. dx=1을 줘도 의미가 없음.
-    # sobel_x = cv2.Sobel(y, cv2.CV_64F, 0, 1, ksize=3)  # 수직
-    # sobel_y = cv2.Sobel(y, cv2.CV_64F, 0, 1, ksize=3)  # 수직
+    y_2d = y.reshape((-1, 1))
+    image_smooth = cv2.GaussianBlur(y_2d, (9, 1), 2.0)
+    # sobel_x = cv2.Sobel(x, cv2.CV_64F, 0, 1, ksize=3)  # 수직
+    sobel_y = cv2.Sobel(image_smooth, cv2.CV_64F, 0, 1, ksize=3)  # 수직
+    sobel_y_abs = np.sqrt(sobel_y**2)
+    print(f'lib: {sobel_y_abs[:10]}')
 
-    sobel_ = sobel_filter_1d(y)
+    # image = np.vstack((x, y)).T
+    # g_x, g_y, mag = sobel_filter(image)
+    # mag_f = [f'{value:.6f}' for value in mag[1:10].flatten()]
+    # print(f'Img: {image[:10]}')
+    # print(f'Mag: {mag[:10]}')
+
+    # 가우시안 필터 적용
+    k_size = 5      # 가우시안 블러 커널 크기
+    sigma = 1.0     # 표준 편차
+    gaussian_k = gaussian_kernel_1d(k_size, sigma)
+    smoothed_data = convolve(y, gaussian_k)
+    
+    print(y[:10])
+    print(smoothed_data[:10])
+
+    sobel_ = sobel_filter_1d(smoothed_data)
 
     # 엣지 세기 계산 -- y의 결과가 음수로 나오면 이상하게 나와서 필요하긴 하겠음!!
     try:
-        edges = np.sqrt(sobel_x**2 + sobel_**2)
+        edges = np.sqrt(sobel_x**2 + sobel_y**2)
     except:
-        print('sobel_x not defined')
-        edges = np.sqrt(sobel_**2)
+        edges = np.sqrt(sobel_y**2)
+        print(f'1df: {edges[:10]}')
 
     #-------------------------------------
     # 시각화 하기
